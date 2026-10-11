@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <meta name="theme-color" content="#992f24">
+  <meta name="description" content="An independent activation server for old TrekStor tablets.">
+  <title>TrekStor Tablet Activation Server</title>
+  <link rel="stylesheet" href="variants.css?v=22">
+</head>
+<body class="warm">
+  <main>
+    <h1>TrekStor tablet activation</h1>
+    <p class="description">
+      After the company that made this tablet went bankrupt, this tablet's activation servers were shut down too. I got my hands on one of the tablets affected and that annoyed me. So I decided to rebuild the server so all 100K+ units sold work again.
+    </p>
+
+    <p class="statistics" id="statistics" hidden>
+      This service has served <strong id="activation-count">0</strong> successful activation requests.
+    </p>
+
+    <nav class="link-cards" aria-label="Project links">
+      <a href="https://github.com/nikolan123/trekstor-activation">
+        <span><strong>GitHub</strong><small>Complete source code and project files. Feel free to star if this helped you</small></span>
+        <b aria-hidden="true">→</b>
+      </a>
+      <a href="https://nikolan.net/posts/fixing-ipads/">
+        <span><strong>Blog post</strong><small>If this sounds interesting to you, feel free to learn more on my blog post about this and maybe write a comment :)</small></span>
+        <b aria-hidden="true">→</b>
+      </a>
+    </nav>
+
+    <p class="contact">
+      Contact: <a href="mailto:niko@nikolan.net">niko@nikolan.net</a>
+    </p>
+
+    <section aria-labelledby="notice-title">
+      <h2 id="notice-title">Unaffiliated</h2>
+      <p>
+        This project is not affiliated with, endorsed by, sponsored by, or
+        maintained by TrekStor or any successor to TrekStor. It does not
+        include or redistribute TrekStor’s original applications, firmware,
+        or media.
+      </p>
+    </section>
+  </main>
+  <script>
+    (() => {
+      const statistics = document.querySelector("#statistics");
+      const activationCount = document.querySelector("#activation-count");
+
+      fetch("/api/stats", { headers: { Accept: "application/json" } })
+        .then((response) => {
+          if (!response.ok) throw new Error("Statistics unavailable");
+          return response.json();
+        })
+        .then((data) => {
+          if (!Number.isInteger(data.activation_requests) || data.activation_requests < 0) {
+            throw new Error("Invalid statistics response");
+          }
+          activationCount.textContent = data.activation_requests.toLocaleString();
+          statistics.hidden = false;
+        })
+        .catch(() => {
+          statistics.hidden = true;
+        });
+    })();
+  </script>
+</body>
+</html>
