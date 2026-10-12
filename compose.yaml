@@ -1,0 +1,11 @@
+services:
+  trekstor-activation:
+    image: ghcr.io/nikolan123/trekstor-activation:latest
+    restart: unless-stopped
+    ports:
+      - "80:8000"
+    volumes:
+      - trekstor-data:/data
+
+volumes:
+  trekstor-data:
