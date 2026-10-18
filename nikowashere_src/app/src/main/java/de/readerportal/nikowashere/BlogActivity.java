@@ -16,24 +16,32 @@ import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 
+import org.json.JSONObject;
 import org.xmlpull.v1.XmlPullParser;
 import org.xmlpull.v1.XmlPullParserFactory;
 
 import java.io.BufferedInputStream;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 
 public final class BlogActivity extends Activity {
     private static final String ARTICLE_URL = "https://nikolan.net/posts/fixing-ipads/";
     private static final String FEED_URL = "https://nikolan.net/blog/index.xml";
+    private static final String ANALYTICS_URL = "https://andy.nikolan.net/api/send";
+    private static final String WEBSITE_ID = "8a041048-f53e-4fe5-b683-c5070c2b6ab3";
     private static final int HOLO_BLUE = Color.rgb(51, 181, 229);
 
     private LinearLayout screen;
+    private boolean articleViewReported;
+    private boolean destroyed;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        articleViewReported = savedInstanceState != null
+                && savedInstanceState.getBoolean("articleViewReported", false);
         if (getActionBar() != null) {
             getActionBar().setTitle("Niko's Blog");
             getActionBar().setSubtitle(null);
@@ -41,6 +49,18 @@ public final class BlogActivity extends Activity {
         }
         showLoading();
         fetchArticle();
+    }
+
+    @Override
+    protected void onSaveInstanceState(Bundle outState) {
+        outState.putBoolean("articleViewReported", articleViewReported);
+        super.onSaveInstanceState(outState);
+    }
+
+    @Override
+    protected void onDestroy() {
+        destroyed = true;
+        super.onDestroy();
     }
 
     @Override
@@ -103,6 +123,14 @@ public final class BlogActivity extends Activity {
         webView.getSettings().setDefaultFontSize(18);
         webView.setWebViewClient(new WebViewClient() {
             @Override
+            public void onPageFinished(WebView view, String url) {
+                if (!destroyed && !isFinishing() && !articleViewReported) {
+                    articleViewReported = true;
+                    reportArticleView();
+                }
+            }
+
+            @Override
             public boolean shouldOverrideUrlLoading(WebView view, String url) {
                 startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url)));
                 return true;
@@ -123,6 +151,51 @@ public final class BlogActivity extends Activity {
         setContentView(webView, new ViewGroup.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.MATCH_PARENT));
+    }
+
+    private static void reportArticleView() {
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                HttpURLConnection connection = null;
+                try {
+                    JSONObject payload = new JSONObject();
+                    payload.put("website", WEBSITE_ID);
+                    payload.put("hostname", "nikolan.net");
+                    payload.put("url", "/posts/fixing-ipads/");
+                    payload.put("name", "tablet-reader-open");
+                    JSONObject event = new JSONObject();
+                    event.put("type", "event");
+                    event.put("payload", payload);
+                    byte[] body = event.toString().getBytes("UTF-8");
+
+                    connection = (HttpURLConnection) new URL(ANALYTICS_URL).openConnection();
+                    connection.setConnectTimeout(5000);
+                    connection.setReadTimeout(5000);
+                    connection.setInstanceFollowRedirects(false);
+                    connection.setRequestMethod("POST");
+                    connection.setRequestProperty("Content-Type", "application/json; charset=UTF-8");
+                    connection.setRequestProperty("User-Agent",
+                            "Mozilla/5.0 (Linux; Android) AppleWebKit/537.36 "
+                            + "(KHTML, like Gecko) NikoWasHere/1.1");
+                    connection.setDoOutput(true);
+                    connection.setFixedLengthStreamingMode(body.length);
+                    OutputStream output = connection.getOutputStream();
+                    try {
+                        output.write(body);
+                    } finally {
+                        output.close();
+                    }
+                    connection.getResponseCode();
+                } catch (Exception ignored) {
+                    // Failured never interrupt reading or retry
+                } finally {
+                    if (connection != null) {
+                        connection.disconnect();
+                    }
+                }
+            }
+        }, "tablet-reader-analytics").start();
     }
 
     private void fetchArticle() {
@@ -167,7 +240,7 @@ public final class BlogActivity extends Activity {
 
             @Override
             protected void onPostExecute(Article article) {
-                if (isFinishing()) {
+                if (destroyed || isFinishing()) {
                     return;
                 }
                 if (article == null) {
